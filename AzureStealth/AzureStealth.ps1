@@ -278,6 +278,8 @@ function Add-PrivilegeAzureEntity {
     [string]
     $SubscriptionID,
     [string]
+    $ResourceName,
+    [string]
     $RoleId,
     [string]
     $PrivilegeReason,
@@ -353,6 +355,7 @@ function Add-PrivilegeAzureEntity {
         ClassicSubscriptionAdmin = [string]$ClassicAdministrator
         RBACRoleAdminName        = [string]$RBACRoleAdminName
         SubscriptionName     = [string]$subscriptionDict[$SubscriptionID].Name
+        ResourceName         = [string]$ResourceName.Name
         SubscriptionID       = [string]$SubscriptionID
         SubscriptionStatus   = [string]$subscriptionDict[$SubscriptionID].State
         TenantDisplayName    = [string]$tenantDict[$TenantId].DisplayName
@@ -614,13 +617,13 @@ function Run-SubscriptionScan {
         # Check if the user is an external user
         if (-not $AzEntityObject) {
             Add-EntityToDict -AzEntityObject $userPrincipalName -externalUser
-            Add-PrivilegeAzureEntity -entityId $userPrincipalName -SubscriptionID $subscriptionId -PrivilegeReason $PrivilegeReason -DirectoryTenantID $TenantId -ClassicAdmin #-RoleId $role.ObjectId 
+            Add-PrivilegeAzureEntity -entityId $userPrincipalName -SubscriptionID $subscriptionId -PrivilegeReason -ResourceGroupName $ResourceName $PrivilegeReason -DirectoryTenantID $TenantId -ClassicAdmin #-RoleId $role.ObjectId 
         }
         else {
             if (-not $entityDict.contains($AzEntityObject.ObjectId)){
                 Add-EntityToDict -AzEntityObject $AzEntityObject
             }
-            Add-PrivilegeAzureEntity -entityId $AzEntityObject.ObjectId -SubscriptionID $subscriptionId -PrivilegeReason $PrivilegeReason -DirectoryTenantID $TenantId -ClassicAdmin #-RoleId $role.ObjectId 
+            Add-PrivilegeAzureEntity -entityId $AzEntityObject.ObjectId -SubscriptionID $subscriptionId -ResourceGroupName $ResourceName -PrivilegeReason $PrivilegeReason -DirectoryTenantID $TenantId -ClassicAdmin #-RoleId $role.ObjectId 
         }
     }
     # Check for privileged RBAC roles
@@ -628,7 +631,7 @@ function Run-SubscriptionScan {
         $rbacPrivilegedEntities = @()
         $PrivilegeReason = $_.RoleDefinitionName
         $roleId = $_.RoleDefinitionId
-        [string]$scope = "/subscriptions/" + $subscriptionId
+        [string]$scope = "/subscriptions/" + $subscriptionId + "/resourceGroups/" + $ResourceName
         if ([string]$_.scope -eq $scope) {
             if ($_.ObjectType -eq "User") {
                 $rbacPrivilegedEntities += $_.ObjectId
@@ -656,6 +659,7 @@ function Run-SubscriptionScan {
 		            $usersFromGroup | foreach {
                        #Adding Users to PrivilegeAzureEntity Dict to include Group ID
                         Add-PrivilegeAzureEntity -entityId $_.ObjectId -SubscriptionID $subscriptionId `
+                                    -ResourceGroupName $ResourceName
                                     -PrivilegeReason $PrivilegeReason -RoleId $roleId -DirectoryTenantID $TenantId `
                                     -PrivilegeGroup $firstGroupName -GroupPrivilege -scope $scope
                     }
@@ -670,6 +674,7 @@ function Run-SubscriptionScan {
                                         Add-EntityToDict -AzEntityObject $AzEntityObject
                                     }
                                     Add-PrivilegeAzureEntity -entityId $_.ObjectId -SubscriptionID $subscriptionId `
+                                    -ResourceGroupName $ResourceName
                                     -PrivilegeReason "Privileged Group Owner" -RoleId $roleId -DirectoryTenantID $TenantId `
                                     -PrivilegeGroup $firstGroupName -GroupPrivilege -scope $scope
                                 }
@@ -686,7 +691,8 @@ function Run-SubscriptionScan {
                 $AzEntityObject = Get-AzureADUser -ObjectId $_
                 Add-EntityToDict -AzEntityObject $AzEntityObject
             }
-            Add-PrivilegeAzureEntity -entityId $_ -SubscriptionID $subscriptionId `
+            Add-PrivilegeAzureEntity -entityId $_ -SubscriptionID $subscriptionId 
+            -ResourceGroupName $ResourceName`
             -PrivilegeReason $PrivilegeReason -RoleId $roleId -DirectoryTenantID $TenantId -scope $scope
         }
 
@@ -695,7 +701,8 @@ function Run-SubscriptionScan {
             $aScope = $_.scope
 
             if ($_.ObjectType -eq "User") {
-                Add-PrivilegeAzureEntity -entityId $_.ObjectId -SubscriptionID $subscriptionId `
+                Add-PrivilegeAzureEntity -entityId $_.ObjectId -SubscriptionID $subscriptionId 
+                -ResourceGroupName $ResourceName`
                 -PrivilegeReason $_.RoleDefinitionName -RoleId $roleId -DirectoryTenantID $TenantId -scope $aScope
             }
             elseif ($_.ObjectType -eq "Group") {
@@ -720,7 +727,8 @@ function Run-SubscriptionScan {
                     $usersFromGroup = $groupMembers | where {$_.ObjectType -eq "User"}
 		            $usersFromGroup | foreach {
                        #Adding Users to PrivilegeAzureEntity Dict to include Group ID
-                        Add-PrivilegeAzureEntity -entityId $_.ObjectId -SubscriptionID $subscriptionId `
+                        Add-PrivilegeAzureEntity -entityId $_.ObjectId -SubscriptionID $subscriptionId 
+                                    -ResourceGroupName $ResourceName`
                                     -PrivilegeReason $PrivilegeReason -RoleId $roleId -DirectoryTenantID $TenantId `
                                     -PrivilegeGroup $firstGroupName -GroupPrivilege -scope $aScope
                     }
@@ -735,6 +743,7 @@ function Run-SubscriptionScan {
                                         Add-EntityToDict -AzEntityObject $AzEntityObject
                                     }
                                     Add-PrivilegeAzureEntity -entityId $_.ObjectId -SubscriptionID $subscriptionId `
+                                    -ResourceGroupName $ResourceName
                                     -PrivilegeReason "Privileged Group Owner" -RoleId $roleId -DirectoryTenantID $TenantId `
                                     -PrivilegeGroup $firstGroupName -GroupPrivilege -scope $aScope
                                 }
